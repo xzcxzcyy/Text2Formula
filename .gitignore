@@ -1,1 +1,5 @@
 doc/
+*.jpg
+*.jpeg
+*.png
+token.go
