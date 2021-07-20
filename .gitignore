@@ -1,5 +1,7 @@
 doc/
+s3deliver/
 *.jpg
 *.jpeg
 *.png
 token.go
+*.svg

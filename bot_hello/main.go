@@ -1,20 +1,23 @@
 package main
 
 import (
+    "fmt"
     tb "gopkg.in/tucnak/telebot.v2"
     "log"
+    "os"
+    "os/exec"
     "strconv"
     "time"
 )
 
 func main() {
     pictureURL := "https://t0922496-nus-13072021.s3.amazonaws.com/mosfet.png"
-    b, err := tb.NewBot(tb.Settings{
+    myBot, err := tb.NewBot(tb.Settings{
         // You can also set custom API URL.
         // If field is empty it equals to "https://api.telegram.org".
         URL: "https://api.telegram.org",
-        // Token here
-        Token:  Token,
+        // token here
+        Token:  token,
         Poller: &tb.LongPoller{Timeout: 10 * time.Second},
     })
 
@@ -23,12 +26,17 @@ func main() {
         return
     }
 
-    b.Handle("/render", func(m *tb.Message) {
+    myBot.Handle("/render", func(m *tb.Message) {
+        pngFilePath, err := renderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+        if err != nil {
+            log.Printf("Error: On command render: %v", err)
+            return
+        }
         a := &tb.Photo{
-            File:    tb.FromURL(pictureURL),
+            File:    tb.FromDisk(pngFilePath),
             Caption: m.Payload,
         }
-        resultMsg, err := b.Send(m.Sender, a)
+        resultMsg, err := myBot.Send(m.Sender, a)
         if err != nil {
             log.Println(err)
         }
@@ -37,29 +45,49 @@ func main() {
         }
     })
 
-    b.Handle("/ch", func(msg *tb.Message) {
+    myBot.Handle("/ch", func(msg *tb.Message) {
         if msg.Payload != "" {
             pictureURL = msg.Payload
         }
     })
 
-    b.Handle(tb.OnQuery, func(q *tb.Query) {
+    myBot.Handle(tb.OnQuery, func(q *tb.Query) {
+        /**
+          tmp
+        */
+        // pictureURL := "https://en.wikipedia.org/wiki/Scalable_Vector_Graphics#/media/File:SVG_Logo.svg"
+
         privateChannelRecipient := &tb.User{ID: chanID}
-        log.Println(q.Text)
+        queryID := q.ID
+
+        if length := len(q.Text); len(q.Text) < 3 || q.Text[0] != '$' || q.Text[length-1] != '$' {
+            return
+        }
+        log.Printf("ID: %v, Query: %v", queryID, q.Text)
+
+        curPngFilePath, err := renderTex(queryID, q.Text[1:len(q.Text)-1])
+        if err != nil {
+            log.Printf("Error: On Handle tb.OnQuery: When rendering: %v", err)
+            return
+        }
+        //log.Printf("On Handle tb.OnQuery: %v", curPngFilePath)
+
+        answerURL := uploadFileToS3(bucketID, curPngFilePath)
+
         urls := []string{
-            pictureURL,
+            answerURL,
         }
         picture := &tb.Photo{
-            File: tb.FromURL(pictureURL),
+            File: tb.FromURL(answerURL),
         }
 
         if !picture.InCloud() {
-            _, err := b.Send(privateChannelRecipient, picture)
+            _, err := myBot.Send(privateChannelRecipient, picture)
             if err != nil {
                 log.Println(err)
             }
         }
-        
+
         results := make(tb.Results, len(urls)) // []tb.Result
         for i, url := range urls {
             result := &tb.PhotoResult{
@@ -72,7 +100,6 @@ func main() {
                 Caption:     q.Text,
                 ParseMode:   "",
                 ThumbURL:    url,
-                Cache:       "",
             }
 
             results[i] = result
@@ -80,9 +107,9 @@ func main() {
             results[i].SetResultID(strconv.Itoa(i))
         }
 
-        err = b.Answer(q, &tb.QueryResponse{
+        err = myBot.Answer(q, &tb.QueryResponse{
             Results:   results,
-            CacheTime: 10, // a minute
+            CacheTime: 60, // a minute
         })
 
         if err != nil {
@@ -90,5 +117,30 @@ func main() {
         }
     })
 
-    b.Start()
+    myBot.Start()
+}
+
+func renderTex(queryID string, formula string) (string, error) {
+    wd, err := os.Getwd()
+    if err != nil {
+        log.Printf("err occurs when os.Getwd(): %v.", err)
+        return "", err
+    }
+    curSvgFilePath := wd + "/svg/" + queryID + ".svg"
+    curPngFilePath := wd + "/png/" + queryID + ".png"
+    perfTex2Svg := exec.Command("python3", wd+"/main.py", curSvgFilePath, formula)
+    err = perfTex2Svg.Run()
+    if err != nil {
+        log.Printf("during perfTex2Svg: %v", err)
+        return "", err
+    }
+    //log.Println(perfTex2Svg.Args)
+    perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath)
+    //log.Println(perfSvg2Png.Args)
+    err = perfSvg2Png.Run()
+    if err != nil {
+        log.Printf("during perfSvg2Png: %v", err)
+        return "", err
+    }
+    return curPngFilePath, nil
 }
