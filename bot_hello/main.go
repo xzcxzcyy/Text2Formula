@@ -11,7 +11,14 @@ import (
 )
 
 func main() {
-    pictureURL := "https://t0922496-nus-13072021.s3.amazonaws.com/mosfet.png"
+    f, err := os.OpenFile("go-hello.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+    if err != nil {
+        log.Fatalf("Error opening file: %v", err)
+    }
+    defer f.Close()
+    log.SetOutput(f)
+    log.Println("Start printing log.")
+
     myBot, err := tb.NewBot(tb.Settings{
         // You can also set custom API URL.
         // If field is empty it equals to "https://api.telegram.org".
@@ -42,12 +49,6 @@ func main() {
         }
         if resultMsg != nil {
             log.Println(a.FileID)
-        }
-    })
-
-    myBot.Handle("/ch", func(msg *tb.Message) {
-        if msg.Payload != "" {
-            pictureURL = msg.Payload
         }
     })
 
@@ -128,14 +129,16 @@ func renderTex(queryID string, formula string) (string, error) {
     }
     curSvgFilePath := wd + "/svg/" + queryID + ".svg"
     curPngFilePath := wd + "/png/" + queryID + ".png"
-    perfTex2Svg := exec.Command("python3", wd+"/main.py", curSvgFilePath, formula)
+    perfTex2Svg := exec.Command(wd + "/mathjax/tex2svg", formula, curSvgFilePath)
+    //log.Println(perfTex2Svg.Args)
+    perfTex2Svg.Dir = wd + "/mathjax"
     err = perfTex2Svg.Run()
     if err != nil {
         log.Printf("during perfTex2Svg: %v", err)
         return "", err
     }
     //log.Println(perfTex2Svg.Args)
-    perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath)
+    perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath, "--output-height", "360")
     //log.Println(perfSvg2Png.Args)
     err = perfSvg2Png.Run()
     if err != nil {
