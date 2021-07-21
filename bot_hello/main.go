@@ -58,7 +58,7 @@ func main() {
         */
         // pictureURL := "https://en.wikipedia.org/wiki/Scalable_Vector_Graphics#/media/File:SVG_Logo.svg"
 
-        privateChannelRecipient := &tb.User{ID: chanID}
+        //privateChannelRecipient := &tb.User{ID: chanID}
         queryID := q.ID
 
         if length := len(q.Text); len(q.Text) < 3 || q.Text[0] != '$' || q.Text[length-1] != '$' {
@@ -66,28 +66,28 @@ func main() {
         }
         log.Printf("ID: %v, Query: %v", queryID, q.Text)
 
-        curPngFilePath, err := renderTex(queryID, q.Text[1:len(q.Text)-1])
+        curAnswerFilePath, err := renderTex(queryID, q.Text[1:len(q.Text)-1])
         if err != nil {
             log.Printf("Error: On Handle tb.OnQuery: When rendering: %v", err)
             return
         }
-        //log.Printf("On Handle tb.OnQuery: %v", curPngFilePath)
+        //log.Printf("On Handle tb.OnQuery: %v", curAnswerFilePath)
 
-        answerURL := uploadFileToS3(bucketID, curPngFilePath)
+        answerURL := uploadFileToS3(bucketID, curAnswerFilePath)
 
         urls := []string{
             answerURL,
         }
-        picture := &tb.Photo{
-            File: tb.FromURL(answerURL),
-        }
-
-        if !picture.InCloud() {
-            _, err := myBot.Send(privateChannelRecipient, picture)
-            if err != nil {
-                log.Println(err)
-            }
-        }
+        //picture := &tb.Photo{
+        //    File: tb.FromURL(answerURL),
+        //}
+        //
+        //if !picture.InCloud() {
+        //    _, err := myBot.Send(privateChannelRecipient, picture)
+        //    if err != nil {
+        //        log.Println(err)
+        //    }
+        //}
 
         results := make(tb.Results, len(urls)) // []tb.Result
         for i, url := range urls {
@@ -129,6 +129,7 @@ func renderTex(queryID string, formula string) (string, error) {
     }
     curSvgFilePath := wd + "/svg/" + queryID + ".svg"
     curPngFilePath := wd + "/png/" + queryID + ".png"
+    curJpgFilePath := wd + "/jpg/" + queryID + ".jpg"
     perfTex2Svg := exec.Command(wd + "/mathjax/tex2svg", formula, curSvgFilePath)
     //log.Println(perfTex2Svg.Args)
     perfTex2Svg.Dir = wd + "/mathjax"
@@ -145,5 +146,10 @@ func renderTex(queryID string, formula string) (string, error) {
         log.Printf("during perfSvg2Png: %v", err)
         return "", err
     }
-    return curPngFilePath, nil
+    err = png2Jpg(curPngFilePath, curJpgFilePath)
+    if err != nil {
+        log.Printf("during png2Jpg: %v", err)
+        return "", err
+    }
+    return curJpgFilePath, nil
 }
