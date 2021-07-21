@@ -10,11 +10,11 @@ import (
     "os"
 )
 
-func png2Jpg(pngFilePath string, jpgFilePath string) error {
+func png2Jpg(pngFilePath string, jpgFilePath string) (sizeInfo image.Point, retErr error) {
     pngImgFile, err := os.Open(pngFilePath)
 
     if err != nil {
-        return err
+        return image.Point{}, err
     }
 
     defer pngImgFile.Close()
@@ -23,7 +23,7 @@ func png2Jpg(pngFilePath string, jpgFilePath string) error {
     imgSrc, err := png.Decode(pngImgFile)
 
     if err != nil {
-        return err
+        return image.Point{}, err
     }
 
     // create a new Image with the same dimension of PNG image
@@ -43,7 +43,7 @@ func png2Jpg(pngFilePath string, jpgFilePath string) error {
 
     if err != nil {
         log.Println("Cannot create JPEG file.")
-        return err
+        return image.Point{}, err
     }
 
     defer jpgImgFile.Close()
@@ -58,9 +58,9 @@ func png2Jpg(pngFilePath string, jpgFilePath string) error {
     //err = jpeg.Encode(jpgImgFile, newImg, nil) -- use nil if ignore quality options
 
     if err != nil {
-        return err
+        return image.Point{}, err
     }
 
-    log.Println("Converted PNG file to JPEG file")
-    return nil
+    //log.Println("Converted PNG file to JPEG file")
+    return newImg.Bounds().Size(), nil
 }

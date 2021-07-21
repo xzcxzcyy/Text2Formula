@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     tb "gopkg.in/tucnak/telebot.v2"
+    "image"
     "log"
     "os"
     "os/exec"
@@ -11,7 +12,7 @@ import (
 )
 
 func main() {
-    f, err := os.OpenFile("go-hello.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+    f, err := os.OpenFile("go-hello.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
     if err != nil {
         log.Fatalf("Error opening file: %v", err)
     }
@@ -34,7 +35,7 @@ func main() {
     }
 
     myBot.Handle("/render", func(m *tb.Message) {
-        pngFilePath, err := renderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+        pngFilePath, _, err := renderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
         if err != nil {
             log.Printf("Error: On command render: %v", err)
             return
@@ -61,16 +62,17 @@ func main() {
         //privateChannelRecipient := &tb.User{ID: chanID}
         queryID := q.ID
 
-        if length := len(q.Text); len(q.Text) < 3 || q.Text[0] != '$' || q.Text[length-1] != '$' {
+        if q.Text == "" {
             return
         }
         log.Printf("ID: %v, Query: %v", queryID, q.Text)
 
-        curAnswerFilePath, err := renderTex(queryID, q.Text[1:len(q.Text)-1])
+        curAnswerFilePath, sizeInfo, err := renderTex(queryID, q.Text)
         if err != nil {
             log.Printf("Error: On Handle tb.OnQuery: When rendering: %v", err)
             return
         }
+        //log.Printf("tb.Onquery handler gets image size: %v", sizeInfo)
         //log.Printf("On Handle tb.OnQuery: %v", curAnswerFilePath)
 
         answerURL := uploadFileToS3(bucketID, curAnswerFilePath)
@@ -94,8 +96,8 @@ func main() {
             result := &tb.PhotoResult{
                 ResultBase:  tb.ResultBase{},
                 URL:         url,
-                Width:       0,
-                Height:      0,
+                Width:       sizeInfo.X,
+                Height:      sizeInfo.Y,
                 Title:       "",
                 Description: "",
                 Caption:     q.Text,
@@ -121,22 +123,22 @@ func main() {
     myBot.Start()
 }
 
-func renderTex(queryID string, formula string) (string, error) {
+func renderTex(queryID string, formula string) (filePath string, sizeInfo image.Point, retErr error) {
     wd, err := os.Getwd()
     if err != nil {
         log.Printf("err occurs when os.Getwd(): %v.", err)
-        return "", err
+        return "", image.Point{}, err
     }
     curSvgFilePath := wd + "/svg/" + queryID + ".svg"
     curPngFilePath := wd + "/png/" + queryID + ".png"
     curJpgFilePath := wd + "/jpg/" + queryID + ".jpg"
-    perfTex2Svg := exec.Command(wd + "/mathjax/tex2svg", formula, curSvgFilePath)
+    perfTex2Svg := exec.Command(wd+"/mathjax/tex2svg", formula, curSvgFilePath)
     //log.Println(perfTex2Svg.Args)
     perfTex2Svg.Dir = wd + "/mathjax"
     err = perfTex2Svg.Run()
     if err != nil {
         log.Printf("during perfTex2Svg: %v", err)
-        return "", err
+        return "", image.Point{}, err
     }
     //log.Println(perfTex2Svg.Args)
     perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath, "--output-height", "360")
@@ -144,12 +146,12 @@ func renderTex(queryID string, formula string) (string, error) {
     err = perfSvg2Png.Run()
     if err != nil {
         log.Printf("during perfSvg2Png: %v", err)
-        return "", err
+        return "", image.Point{}, err
     }
-    err = png2Jpg(curPngFilePath, curJpgFilePath)
+    imgSize, err := png2Jpg(curPngFilePath, curJpgFilePath)
     if err != nil {
         log.Printf("during png2Jpg: %v", err)
-        return "", err
+        return "", image.Point{}, err
     }
-    return curJpgFilePath, nil
+    return curJpgFilePath, imgSize, nil
 }
