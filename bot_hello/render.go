@@ -11,6 +11,19 @@ import (
     "os/exec"
 )
 
+const (
+    minImageWidth  int = 720
+    minImageHeight int = 360
+)
+
+func max(a, b int) int {
+    if a > b {
+        return a
+    } else {
+        return b
+    }
+}
+
 func png2Jpg(pngFilePath string, jpgFilePath string) (sizeInfo image.Point, retErr error) {
     pngImgFile, err := os.Open(pngFilePath)
 
@@ -27,17 +40,22 @@ func png2Jpg(pngFilePath string, jpgFilePath string) (sizeInfo image.Point, retE
         return image.Point{}, err
     }
 
-    // create a new Image with the same dimension of PNG image
-    newImg := image.NewRGBA(imgSrc.Bounds())
-
-    // we will use white background to replace PNG's transparent background
-    // you can change it to whichever color you want with
-    // a new color.RGBA{} and use image.NewUniform(color.RGBA{<fill in color>}) function
-
-    draw.Draw(newImg, newImg.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
-
-    // paste PNG image OVER to newImage
-    draw.Draw(newImg, newImg.Bounds(), imgSrc, imgSrc.Bounds().Min, draw.Over)
+    srcImgSize := imgSrc.Bounds().Size()
+    newImgBounds := image.Rectangle{
+        Min: image.Point{},
+        Max: image.Point{
+            X: max(srcImgSize.X, minImageWidth) + 5,
+            Y: max(srcImgSize.Y, minImageHeight) + 5,
+        },
+    }
+    newImg := image.NewRGBA(newImgBounds)
+    draw.Draw(newImg, newImgBounds, &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+    dp := image.Point{
+        X: newImgBounds.Min.X + (newImgBounds.Size().X-srcImgSize.X)/2,
+        Y: newImgBounds.Min.Y + (newImgBounds.Size().Y-srcImgSize.Y)/2,
+    }
+    drawBounds := image.Rectangle{Min: dp, Max: dp.Add(srcImgSize)}
+    draw.Draw(newImg, drawBounds, imgSrc, imgSrc.Bounds().Min, draw.Over)
 
     // create new out JPEG file
     jpgImgFile, err := os.Create(jpgFilePath)
@@ -84,7 +102,7 @@ func renderTex(queryID string, formula string) (filePath string, sizeInfo image.
         return "", image.Point{}, err
     }
     //log.Println(perfTex2Svg.Args)
-    perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath, "--output-height", "360")
+    perfSvg2Png := exec.Command("cairosvg", curSvgFilePath, "-o", curPngFilePath, "-s", "2.5")
     //log.Println(perfSvg2Png.Args)
     err = perfSvg2Png.Run()
     if err != nil {
