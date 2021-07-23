@@ -12,3 +12,4 @@ token.go
 ./bot_hello/png/
 ./bot_hello/svg/
 ./bot_hello/node_modules/
+*.log
