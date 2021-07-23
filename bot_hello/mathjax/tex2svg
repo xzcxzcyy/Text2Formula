@@ -151,9 +151,18 @@ const node = MathJax.tex2svg(argv._[0] || '', {
 //  If the --css option was specified, output the CSS,
 //  Otherwise, output the typeset math as SVG
 //
+
+var svg_string;
 if (argv.css) {
-    console.log(adaptor.textContent(MathJax.svgStylesheet()));
+    svg_string = adaptor.textContent(MathJax.svgStylesheet());
+    console.log(svg_string);
 } else {
     let html = (argv.container ? adaptor.outerHTML(node) : adaptor.innerHTML(node));
-    console.log(argv.styles ? html.replace(/<defs>/, `<defs><style>${CSS}</style>`) : html);
+    svg_string = argv.styles ? html.replace(/<defs>/, `<defs><style>${CSS}</style>`) : html;
+    console.log(svg_string);
 };
+
+let fs=require("fs");
+let fd =fs.openSync(argv._[1],"w");// 没有文件创建文件
+fs.writeSync(fd,svg_string);
+

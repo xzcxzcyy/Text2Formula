@@ -5,5 +5,9 @@ s3deliver/
 *.png
 token.go
 *.svg
-mathjax/
-mathjax-full/
+./mathjax/
+./mathjax-full/
+./bot_hello/.idea/
+./bot_hello/jpg
+./bot_hello/png
+./bot_hello/svg
