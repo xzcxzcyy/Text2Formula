@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"os"
 	"path/filepath"
-	"t2f-bot/config"
+    "banson.cloud/t2f-bot/config"
 )
 
 const (

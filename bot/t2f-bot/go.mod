@@ -1,4 +1,4 @@
-module t2f-bot
+module banson.cloud/t2f-bot
 
 go 1.16
 

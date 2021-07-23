@@ -1,14 +1,14 @@
 package main
 
 import (
+    "banson.cloud/t2f-bot/config"
+    "banson.cloud/t2f-bot/network"
+    "banson.cloud/t2f-bot/render"
     "fmt"
     tb "gopkg.in/tucnak/telebot.v2"
     "log"
     "os"
     "strconv"
-    "t2f-bot/config"
-    "t2f-bot/network"
-    "t2f-bot/render"
     "time"
 )
 
