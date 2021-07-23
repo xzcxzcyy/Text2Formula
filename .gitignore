@@ -8,6 +8,7 @@ token.go
 ./mathjax/
 ./mathjax-full/
 ./bot_hello/.idea/
-./bot_hello/jpg
-./bot_hello/png
-./bot_hello/svg
+./bot_hello/jpg/
+./bot_hello/png/
+./bot_hello/svg/
+./bot_hello/node_modules/
