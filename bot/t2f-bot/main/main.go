@@ -3,7 +3,6 @@ package main
 import (
     "banson.moe/t2f-bot/config"
     "banson.moe/t2f-bot/network"
-    "banson.moe/t2f-bot/render"
     "fmt"
     tb "gopkg.in/tucnak/telebot.v2"
     "log"
@@ -21,24 +20,24 @@ func main() {
     log.SetOutput(f)
     log.Println("Start printing log.")
 
-    workingDir, err := os.Getwd()
-    if err != nil {
-        log.Fatalf("During program start-up: %v", err)
-    }
-    var checkOrCreateDir = func(relative string) string {
-        dirPath := workingDir + relative
-        err := os.MkdirAll(dirPath, 0755)
-        if err != nil {
-            log.Fatalf("During program init: checkOrCreateDir: %v", err)
-        }
-        return dirPath
-    }
-    renderer := render.Renderer{
-        SvgDir:     checkOrCreateDir("/svg"),
-        PngDir:     checkOrCreateDir("/png"),
-        JpgDir:     checkOrCreateDir("/jpg"),
-        MathjaxDir: workingDir + "/mathjax",
-    }
+    /*workingDir, err := os.Getwd()
+      if err != nil {
+          log.Fatalf("During program start-up: %v", err)
+      }
+      var checkOrCreateDir = func(relative string) string {
+          dirPath := workingDir + relative
+          err := os.MkdirAll(dirPath, 0755)
+          if err != nil {
+              log.Fatalf("During program init: checkOrCreateDir: %v", err)
+          }
+          return dirPath
+      }
+      renderer := render.Renderer{
+          SvgDir:     checkOrCreateDir("/svg"),
+          PngDir:     checkOrCreateDir("/png"),
+          JpgDir:     checkOrCreateDir("/jpg"),
+          MathjaxDir: workingDir + "/mathjax",
+      }*/
 
     myBot, err := tb.NewBot(tb.Settings{
         // You can also set custom API URL.
@@ -55,13 +54,14 @@ func main() {
     }
 
     myBot.Handle("/render", func(m *tb.Message) {
-        pngFilePath, _, err := renderer.RenderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+        //pngFilePath, _, err := renderer.RenderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+        renderResp, err := network.Request(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
         if err != nil {
-            log.Printf("Error: On command render: %v", err)
+            log.Printf("Error: On command \"/render\": %v", err)
             return
         }
         a := &tb.Photo{
-            File:    tb.FromDisk(pngFilePath),
+            File:    tb.FromURL(renderResp.S3Url),
             Caption: m.Payload,
         }
         resultMsg, err := myBot.Send(m.Sender, a)
@@ -87,21 +87,25 @@ func main() {
         }
         log.Printf("ID: %v, Query: %v", queryID, q.Text)
 
-        curAnswerFilePath, sizeInfo, err := renderer.RenderTex(queryID, q.Text)
+        /*curAnswerFilePath, sizeInfo, err := renderer.RenderTex(queryID, q.Text)
         if err != nil {
             log.Printf("Error: On Handle tb.OnQuery: When rendering: %v", err)
             return
-        }
+        }*/
         //log.Printf("tb.Onquery handler gets image size: %v", sizeInfo)
         //log.Printf("On Handle tb.OnQuery: %v", curAnswerFilePath)
 
-        answerURL := network.UploadFileToS3(config.BucketID, curAnswerFilePath)
+        renderResp, err := network.Request(queryID, q.Text)
+        if err != nil {
+            log.Printf("during render request: %v", err)
+            return
+        }
 
         urls := []string{
-            answerURL,
+            renderResp.S3Url,
         }
         //picture := &tb.Photo{
-        //    File: tb.FromURL(answerURL),
+        //    File: tb.FromURL(renderResp),
         //}
         //
         //if !picture.InCloud() {
@@ -116,8 +120,8 @@ func main() {
             result := &tb.PhotoResult{
                 ResultBase:  tb.ResultBase{},
                 URL:         url,
-                Width:       sizeInfo.X,
-                Height:      sizeInfo.Y,
+                Width:       renderResp.Width,
+                Height:      renderResp.Height,
                 Title:       "",
                 Description: "",
                 Caption:     q.Text,

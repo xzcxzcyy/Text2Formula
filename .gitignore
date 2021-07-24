@@ -5,6 +5,7 @@ s3deliver/
 *.png
 token.go
 *.svg
+config/
 
 # npm
 node_modules/
