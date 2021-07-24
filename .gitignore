@@ -5,4 +5,11 @@ s3deliver/
 *.png
 token.go
 *.svg
+
+# npm
 node_modules/
+package-lock.json
+
+# log
+*.log
+
