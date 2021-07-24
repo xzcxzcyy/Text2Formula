@@ -39,7 +39,7 @@ func Request(queryID, formula string) (*ResponseBody, error) {
     resp, _ := newClient.Do(req)
 
     if resp.StatusCode != http.StatusOK {
-        log.Println("during network/Request: response get error")
+        log.Printf("during network/Request: response get Error Code %d", resp.StatusCode)
         return nil, errors.New("response's status is not OK")
     }
     body, _ := ioutil.ReadAll(resp.Body)
