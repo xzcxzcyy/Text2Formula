@@ -7,7 +7,7 @@ sudo apt install python-cairo python-pip
 pip install cairosvg
 
 cd t2f-runtime/mathjax
-npm install mathjax-full
+npm install
 
 cd ../..
 chmod +x ./build-install.sh
