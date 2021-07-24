@@ -51,6 +51,7 @@ func main() {
         var pictureUrl string
         if pictureInfo != nil {
             pictureUrl = pictureInfo.S3Url
+            log.Printf("Debug: On command \"/render\": Cache HIT")
         } else {
             renderResp, err := network.Request(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
             if err != nil {
@@ -110,6 +111,8 @@ func main() {
             if err != nil {
                 log.Printf("Error: When PUT data: %v", err)
             }
+        } else {
+            log.Printf("Debug: OnQuery: Cache HIT")
         }
 
         urls := []string{
