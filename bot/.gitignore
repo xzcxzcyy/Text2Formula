@@ -1,0 +1,6 @@
+node_modules/
+svg/
+png/
+jpg/
+.idea/
+*.log
