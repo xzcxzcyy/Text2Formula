@@ -22,6 +22,7 @@ func main() {
     log.Println("Start printing log.")
 
     dbClient := database.InitDatabase()
+    _ = dbClient.SetTTL(7 * 24)
 
     myBot, err := tb.NewBot(tb.Settings{
         // You can also set custom API URL.
