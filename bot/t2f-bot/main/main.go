@@ -38,6 +38,20 @@ func main() {
         return
     }
 
+    myBot.Handle("/start", func(msg *tb.Message) {
+        help := "You can use /render <formula> to get a pretty picture out of your TeX formula.\n" +
+            "For example: /render x^2\n" +
+            "If you have no ideas, try out the following: \n" +
+            "\\infty\n" +
+            "\\int_{-1}^{1}\n" +
+            "\\sum_{-1}^{1}\n" +
+            "\\frac{1}{2}\n"
+        _, err := myBot.Send(msg.Sender, help)
+        if err != nil {
+            log.Println(err)
+        }
+    })
+
     myBot.Handle("/render", func(m *tb.Message) {
         //pngFilePath, _, err := renderer.RenderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
         if m.Payload == "" {
