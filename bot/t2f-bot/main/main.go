@@ -2,8 +2,8 @@ package main
 
 import (
     "banson.moe/t2f-bot/config"
+    "banson.moe/t2f-bot/database"
     "banson.moe/t2f-bot/network"
-    "banson.moe/t2f-bot/render"
     "fmt"
     tb "gopkg.in/tucnak/telebot.v2"
     "log"
@@ -21,24 +21,8 @@ func main() {
     log.SetOutput(f)
     log.Println("Start printing log.")
 
-    workingDir, err := os.Getwd()
-    if err != nil {
-        log.Fatalf("During program start-up: %v", err)
-    }
-    var checkOrCreateDir = func(relative string) string {
-        dirPath := workingDir + relative
-        err := os.MkdirAll(dirPath, 0755)
-        if err != nil {
-            log.Fatalf("During program init: checkOrCreateDir: %v", err)
-        }
-        return dirPath
-    }
-    renderer := render.Renderer{
-        SvgDir:     checkOrCreateDir("/svg"),
-        PngDir:     checkOrCreateDir("/png"),
-        JpgDir:     checkOrCreateDir("/jpg"),
-        MathjaxDir: workingDir + "/mathjax",
-    }
+    dbClient := database.InitDatabase()
+    _ = dbClient.SetTTL(7 * 24)
 
     myBot, err := tb.NewBot(tb.Settings{
         // You can also set custom API URL.
@@ -54,14 +38,54 @@ func main() {
         return
     }
 
-    myBot.Handle("/render", func(m *tb.Message) {
-        pngFilePath, _, err := renderer.RenderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+    myBot.Handle("/start", func(msg *tb.Message) {
+        help := "You can use /render <formula> to get a pretty picture out of your TeX formula.\n" +
+            "For example: /render x^2\n" +
+            "If you have no ideas, try out the following: \n" +
+            "\\infty\n" +
+            "\\int_{-1}^{1}\n" +
+            "\\sum_{-1}^{1}\n" +
+            "\\frac{1}{2}\n"
+        _, err := myBot.Send(msg.Sender, help)
         if err != nil {
-            log.Printf("Error: On command render: %v", err)
+            log.Println(err)
+        }
+    })
+
+    myBot.Handle("/render", func(m *tb.Message) {
+        //pngFilePath, _, err := renderer.RenderTex(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+        if m.Payload == "" {
             return
         }
+
+        pictureInfo, err := dbClient.Get(m.Payload)
+        if err != nil {
+            log.Printf("Debug: On command \"/render\": %v", err)
+        }
+
+        var pictureUrl string
+        if pictureInfo != nil {
+            pictureUrl = pictureInfo.S3Url
+            log.Printf("Debug: On command \"/render\": Cache HIT")
+        } else {
+            renderResp, err := network.Request(fmt.Sprintf("%v-%v", m.Chat.ID, m.ID), m.Payload)
+            if err != nil {
+                log.Printf("Error: On command \"/render\": %v", err)
+                return
+            }
+            err = dbClient.Put(m.Payload, &database.PictureInfo{
+                S3Url:  renderResp.S3Url,
+                Width:  renderResp.Width,
+                Height: renderResp.Height,
+            })
+            if err != nil {
+                log.Printf("Error: When PUT data: %v", err)
+            }
+            pictureUrl = renderResp.S3Url
+        }
+
         a := &tb.Photo{
-            File:    tb.FromDisk(pngFilePath),
+            File:    tb.FromURL(pictureUrl),
             Caption: m.Payload,
         }
         resultMsg, err := myBot.Send(m.Sender, a)
@@ -74,12 +98,7 @@ func main() {
     })
 
     myBot.Handle(tb.OnQuery, func(q *tb.Query) {
-        /**
-          tmp
-        */
-        // pictureURL := "https://en.wikipedia.org/wiki/Scalable_Vector_Graphics#/media/File:SVG_Logo.svg"
 
-        //privateChannelRecipient := &tb.User{ID: chanID}
         queryID := q.ID
 
         if q.Text == "" {
@@ -87,37 +106,41 @@ func main() {
         }
         log.Printf("ID: %v, Query: %v", queryID, q.Text)
 
-        curAnswerFilePath, sizeInfo, err := renderer.RenderTex(queryID, q.Text)
+        pictureInfo, err := dbClient.Get(q.Text)
         if err != nil {
-            log.Printf("Error: On Handle tb.OnQuery: When rendering: %v", err)
-            return
+            log.Printf("Debug: OnQuery: %v", err)
         }
-        //log.Printf("tb.Onquery handler gets image size: %v", sizeInfo)
-        //log.Printf("On Handle tb.OnQuery: %v", curAnswerFilePath)
 
-        answerURL := network.UploadFileToS3(config.BucketID, curAnswerFilePath)
+        if pictureInfo == nil {
+            renderResp, err := network.Request(queryID, q.Text)
+            if err != nil {
+                log.Printf("Error: OnQuery: %v", err)
+                return
+            }
+            pictureInfo = &database.PictureInfo{
+                S3Url:  renderResp.S3Url,
+                Width:  renderResp.Width,
+                Height: renderResp.Height,
+            }
+            err = dbClient.Put(q.Text, pictureInfo)
+            if err != nil {
+                log.Printf("Error: When PUT data: %v", err)
+            }
+        } else {
+            log.Printf("Debug: OnQuery: Cache HIT")
+        }
 
         urls := []string{
-            answerURL,
+            pictureInfo.S3Url,
         }
-        //picture := &tb.Photo{
-        //    File: tb.FromURL(answerURL),
-        //}
-        //
-        //if !picture.InCloud() {
-        //    _, err := myBot.Send(privateChannelRecipient, picture)
-        //    if err != nil {
-        //        log.Println(err)
-        //    }
-        //}
 
         results := make(tb.Results, len(urls)) // []tb.Result
         for i, url := range urls {
             result := &tb.PhotoResult{
                 ResultBase:  tb.ResultBase{},
                 URL:         url,
-                Width:       sizeInfo.X,
-                Height:      sizeInfo.Y,
+                Width:       pictureInfo.Width,
+                Height:      pictureInfo.Height,
                 Title:       "",
                 Description: "",
                 Caption:     q.Text,
